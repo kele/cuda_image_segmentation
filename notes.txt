@@ -1,0 +1,55 @@
+#intensity
+ANl told me that it's a good idea to just take a distance between two RGB
+colours in a 3d space as a measure of how different pixels are.
+
+
+As far as I understand, the push-relabel algorithm in GPU gems is slightly
+different than the one in Cormen. What are the differences?
+
+1. relabel
+Cormen
+// Can be used when e(v) > 0 and forall u, st. (v, u) in Ef: h(v) <= h(u)
+h(v) := 1 + min{ h(u) | (v, u) in Ef }
+
+GPU gems
+// Can be usen when e(v) > 0
+h(v) := INF
+for u in N(v):
+    if (v, u) in Ef
+        h(v) := min { h(v) + 1, h(u) }
+
+Are these two equivalent?
+Yes.
+By loosing the contraint on using relabel when h(v) <= h(u), it's simply done
+more often. Also, push uses h(v) = h(u) + 1 contraint, so it seems ok.
+
+2. push(v, u)
+cf(v, u) = c(v, u) - f(v, u)
+
+Cormen
+// Can be used when e(v) > 0, cf(v, u) > 0, h(v) = h(u) + 1
+d = min(e(v), cf(v, u))
+f(v, u) += d
+f(u, v) -= d
+e(v) -= d
+e(u) += d
+
+GPU gems
+// Can be used when e(v) > 0, h(v) = h(u) + 1
+// Same code as in Cormen. As we can see, this code does exactly the same.
+// That's because cf cannot really drop below 0. Or can it? Nope, because it's
+// c(v, u) - f(v, u), and f(v, u) is between -c(v, u) and c(v, u) ;-)
+
+Ok. I believe that these two versions are equivalent.
+
+
+
+How to reimplement push-relabel to make it effective on CUDA?
+
+Assumptions: simple 4 neigbhourhood
+
+We focus on a single tile, that is handled by blocks. Later we discuss what to
+do between tiles.
+1. Push updates edges, but no conflicts occur then.
+2. Push updates excess flow, there are conflicts for sure.
+

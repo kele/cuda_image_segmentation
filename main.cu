@@ -1,12 +1,11 @@
 #include <cstdio>
 #include <cstring>
 
-#include "utilities.hpp"
+#include "cpu_utils.hpp"
 
 pixel_t image[MAX_HEIGHT][MAX_WIDTH];
 pixel_t marked_image[MAX_HEIGHT][MAX_WIDTH];
 
-void normalize_image(unsigned width, unsigned height, pixel_t *image);
 
 int main(int argc, char *argv[])
 {
@@ -41,12 +40,3 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void normalize_image(unsigned width, unsigned height, pixel_t *image)
-{
-    for (unsigned y = 0; y < height; y++)
-        for (unsigned x = 0; x < width; x++)
-            if (color_eq(image[y*height + x], 255, 255, 255))
-                image[y*height + x].b = 254;
-            else if (color_eq(image[y*height + x], 0, 0, 0))
-                image[y*height + x].b = 1;
-}

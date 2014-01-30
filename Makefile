@@ -1,4 +1,4 @@
-OBJS = utilities.o
+OBJS = cpu_utils.o
 CC = nvcc -O2 -Xcompiler -Wno-unused-result -arch=compute_30
 
 all: flow Makefile

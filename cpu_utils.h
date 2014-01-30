@@ -6,13 +6,14 @@
 
 struct pixel_t {
     unsigned char r, g, b;
-    unsigned char reserved;
+    unsigned char reserved; // used for padding right now
 };
 
 extern const pixel_t OBJECT;
 extern const pixel_t BACKGR;
 
 
+/* Delete white and black colours from the image */
 inline int myabs(int a, int b)
 { return (a > b) ? (a - b) : (b - a); }
 

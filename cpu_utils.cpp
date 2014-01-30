@@ -2,7 +2,7 @@
 #include <cstring>
 #include <cstdarg>
 
-#include "utilities.hpp"
+#include "cpu_utils.h"
 
 const pixel_t OBJECT = { .r = 255, .g = 255, .b = 255 };
 const pixel_t BACKGR = { .r = 0, .g = 0, .b = 0 };
@@ -57,6 +57,17 @@ out:
     fclose(f);
     return ret;
 }
+
+void normalize_image(unsigned width, unsigned height, pixel_t *image)
+{
+    for (unsigned y = 0; y < height; y++)
+        for (unsigned x = 0; x < width; x++)
+            if (color_eq(image[y*height + x], 255, 255, 255))
+                image[y*height + x].b = 254;
+            else if (color_eq(image[y*height + x], 0, 0, 0))
+                image[y*height + x].b = 1;
+}
+void normalize_image(unsigned width, unsigned height, pixel_t *image);
 
 int RETERR(int code, const char *err_message, ...)
 {
