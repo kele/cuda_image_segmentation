@@ -2,7 +2,7 @@
 #include <cstring>
 #include <cstdarg>
 
-#include "cpu_utils.h"
+#include "cpu_utils.hpp"
 
 const pixel_t OBJECT = { .r = 255, .g = 255, .b = 255 };
 const pixel_t BACKGR = { .r = 0, .g = 0, .b = 0 };
@@ -16,8 +16,6 @@ int writeppm(const char *filename, unsigned width, unsigned height,
         return 1;
 
     fprintf(f, "P6\n%u\n%u\n255\n", width, height);
-    if (width > MAX_WIDTH || height > MAX_HEIGHT)
-
     for (unsigned y = 0; y < height; y++)
         for (unsigned x = 0; x < width; x++) {
             fputc(pixels[y*width + x].r, f);
@@ -67,7 +65,6 @@ void normalize_image(unsigned width, unsigned height, pixel_t *image)
             else if (color_eq(image[y*height + x], 0, 0, 0))
                 image[y*height + x].b = 1;
 }
-void normalize_image(unsigned width, unsigned height, pixel_t *image);
 
 int RETERR(int code, const char *err_message, ...)
 {

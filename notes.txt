@@ -1,3 +1,4 @@
+
 #intensity
 ANl told me that it's a good idea to just take a distance between two RGB
 colours in a 3d space as a measure of how different pixels are.

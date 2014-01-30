@@ -3,6 +3,9 @@
 
 #include "cpu_utils.hpp"
 
+#define MAX_HEIGHT 1000
+#define MAX_WIDTH  1000
+
 pixel_t image[MAX_HEIGHT][MAX_WIDTH];
 pixel_t marked_image[MAX_HEIGHT][MAX_WIDTH];
 
