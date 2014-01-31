@@ -6,21 +6,40 @@
 
 #include "cpu_utils.hpp"
 
+
+const int MULT = 100000;
+const float LAMBDA = 0.000001f; // DEBUG delete one 0
+const int INF = 0x1ffffffe;
+
+inline bool in_range(int x, int a, int b) { return a <= x && x <= b; }
+
+// TODO: this should be somehow determined experimentally
+const int VARIANT = 255.f;
+
+inline int compute_edge(const pixel_t &a, const pixel_t &b)
+{
+    float x = (float)a.r - b.r;
+    float y = (float)a.g - b.g;
+    float z = (float)a.b - b.b;
+    float r = exp(-(x*x + y*y + z*z)/VARIANT); // DEBUG: there was sqrt there
+    return MULT*r;
+}
+
 class ImageGraph {
 public:
-    static const unsigned REG_NEIGHBOURS = 4;
-    static const unsigned NEIGHBOURS = REG_NEIGHBOURS + 2;
-    static const unsigned SOURCE = REG_NEIGHBOURS - 2;
-    static const unsigned SINK = REG_NEIGHBOURS - 1;
+    static const int REG_NEIGHBOURS = 4;
+    static const int NEIGHBOURS = REG_NEIGHBOURS + 2;
+    static const int SOURCE = NEIGHBOURS - 2;
+    static const int SINK = NEIGHBOURS - 1;
 
     struct node_t {
-        std::vector<float> c;
+        std::vector<int> c;
         int height;
-        float overflow;
-        unsigned neighbours;
+        int overflow;
+        int neighbours;
 
-        node_t(unsigned neighbours)
-            : neighbours(neighbours), c(neighbours) {}
+        node_t(int neighbours)
+            : neighbours(neighbours), c(neighbours), overflow(0), height(0) {}
     };
 
     struct regular_node_t : public node_t
@@ -32,15 +51,17 @@ public:
     std::vector<regular_node_t> nodes;
     node_t source;
     node_t sink;
-    unsigned width, height;
+    int width, height;
 
-    ImageGraph(unsigned width, unsigned height)
-        : nodes(width*height),
+    ImageGraph(int width, int height)
+        : width(width),
+          height(height),
+          nodes(width*height),
           source(width*height),
           sink(width*height)
     {}
 
-    inline regular_node_t &get(unsigned x, unsigned y) { return nodes[y*height + x]; }
+    inline regular_node_t &get(int x, int y) { return nodes[y*width + x]; }
 };
 
 #define DIV 26
@@ -48,35 +69,36 @@ class Histogram {
 public:
     enum { OBJ, BG };
 
-    Histogram(unsigned width, unsigned height, const pixel_t *image, const pixel_t *marks)
+    Histogram(int width, int height, const pixel_t *image, const pixel_t *marks)
     {
-        memset(count, 0, 2*10*10*10*sizeof(*count));
+        memset(count, 0, 10*10*10*sizeof(int));
         total_count = width*height;
 
-        for (unsigned i = 0; i < width*height; i++) {
-            if (color_eq(marks[i], OBJECT))
-                count[OBJ][image[i].r/DIV][image[i].g/DIV][image[i].b/DIV];
-            else if (colordiff(marks[i], BACKGR) == 0)
-                count[BG][image[i].r/DIV][image[i].g/DIV][image[i].b/DIV];
+        for (int i = 0; i < width*height; i++) {
+            if (marks[i] == WHITE)
+                count[image[i].r/DIV][image[i].g/DIV][image[i].b/DIV]++;
         }
     }
 
     inline float prob_obj(const pixel_t &pix) const
-    { return probability(OBJ, pix); }
-    inline float prob_bg(const pixel_t &pix) const
-    { return probability(BG, pix); }
-    inline float probability(int lab, const pixel_t &pix) const
     {
-        return (float)count[lab][pix.r/DIV][pix.g/DIV][pix.b/DIV]/total_count;
+        float c = count[pix.r/DIV][pix.g/DIV][pix.b/DIV];
+        if (c == 0)
+            c = 0.0001f;
+        return c/total_count;
+    }
+    inline float prob_bg(const pixel_t &pix) const
+    {
+        return 1.f - prob_obj(pix);
     }
 
 private:
-    unsigned count[2][10][10][10];
-    unsigned total_count;
+    int count[10][10][10];
+    int total_count;
 
 };
 
-void segmentation_cpu(unsigned width, unsigned height, const pixel_t *image,
+void segmentation_cpu(int width, int height, const pixel_t *image,
   const pixel_t *marks, pixel_t *segmented_image);
 
 #endif

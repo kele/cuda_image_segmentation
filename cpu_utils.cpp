@@ -4,8 +4,8 @@
 
 #include "cpu_utils.hpp"
 
-const pixel_t OBJECT = { .r = 255, .g = 255, .b = 255 };
-const pixel_t BACKGR = { .r = 0, .g = 0, .b = 0 };
+const pixel_t WHITE = { .r = 255, .g = 255, .b = 255 };
+const pixel_t BLACK = { .r = 0, .g = 0, .b = 0 };
 
 
 int writeppm(const char *filename, unsigned width, unsigned height,
@@ -60,10 +60,10 @@ void normalize_image(unsigned width, unsigned height, pixel_t *image)
 {
     for (unsigned y = 0; y < height; y++)
         for (unsigned x = 0; x < width; x++)
-            if (color_eq(image[y*height + x], 255, 255, 255))
-                image[y*height + x].b = 254;
-            else if (color_eq(image[y*height + x], 0, 0, 0))
-                image[y*height + x].b = 1;
+            if (color_eq(image[y*width + x], 255, 255, 255))
+                image[y*width + x].b = 254;
+            else if (color_eq(image[y*width + x], 0, 0, 0))
+                image[y*width + x].b = 1;
 }
 
 int RETERR(int code, const char *err_message, ...)

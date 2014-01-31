@@ -1,4 +1,4 @@
-OBJS = cpu_utils.o
+OBJS = cpu_utils.o cpu_seg.o
 CC = nvcc -O2 -Xcompiler -Wno-unused-result -arch=compute_30
 
 all: flow Makefile
@@ -9,7 +9,7 @@ flow: main.o
 main.o: main.cu $(OBJS)
 	$(CC) -c main.cu
 
-%.o: %.cpp %.h
+%.o: %.cpp
 	$(CC) -c $<
 	
 clean:

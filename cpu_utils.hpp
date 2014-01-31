@@ -5,8 +5,8 @@ struct pixel_t {
     unsigned char r, g, b;
 };
 
-extern const pixel_t OBJECT;
-extern const pixel_t BACKGR;
+extern const pixel_t WHITE;
+extern const pixel_t BLACK;
 
 /* Delete white and black colours from the image */
 void normalize_image(unsigned width, unsigned height, pixel_t *image);
