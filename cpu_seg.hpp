@@ -8,8 +8,8 @@
 
 
 const int MULT = 100000;
-const float LAMBDA = 0.000001f; // DEBUG delete one 0
-const int INF = 0x1ffffffe;
+const float LAMBDA = 0.000001f;
+#define INF 0x1ffffffe
 
 inline bool in_range(int x, int a, int b) { return a <= x && x <= b; }
 

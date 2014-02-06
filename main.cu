@@ -11,6 +11,8 @@ pixel_t image[MAX_HEIGHT][MAX_WIDTH];
 pixel_t marked_image[MAX_HEIGHT][MAX_WIDTH];
 pixel_t segmented_image[MAX_HEIGHT][MAX_WIDTH];
 
+void segmentation_gpu(int width, int height, const pixel_t *image,
+  const pixel_t *marks, pixel_t *segmented_image);
 
 int main(int argc, char *argv[])
 {
@@ -42,7 +44,7 @@ int main(int argc, char *argv[])
     if (readppm(new_filename, &width, &height, (pixel_t *)marked_image))
         return RETERR(1, "Cannot open input file.\n");
 
-    segmentation_cpu(width, height, (pixel_t *)image, (pixel_t *)marked_image, (pixel_t *)segmented_image);
+    segmentation_gpu(width, height, (pixel_t *)image, (pixel_t *)marked_image, (pixel_t *)segmented_image);
 
     new_filename[0] = 'S';
     if (writeppm(new_filename, width, height, (pixel_t *)segmented_image))

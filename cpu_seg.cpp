@@ -165,7 +165,8 @@ void push_relabel(ImageGraph &g)
                 const int upos = dy*g.width + dx;
                 regular_node_t &u = g.nodes[upos];
 
-                if (v.height == u.height + 1 && v.c[i] > 0) {
+                if (v.height > u.height && v.c[i] > 0) {
+                // if (v.height == u.height + 1 && v.c[i] > 0) {
                     const int d = std::min(v.overflow, v.c[i]);
                     const int ui = g.REG_NEIGHBOURS - 1 - i;
                     v.overflow      -= d; 
@@ -183,8 +184,9 @@ void push_relabel(ImageGraph &g)
         }
         if (v.overflow == 0)
             continue;
-
-        if (v.height == g.sink.height + 1 && v.c[g.SINK] > 0) {
+    
+        if (v.height > g.sink.height && v.c[g.SINK] > 0) {
+        // if (v.height == g.sink.height + 1 && v.c[g.SINK] > 0) {
             int d = std::min(v.overflow, v.c[g.SINK]);
             v.overflow          -= d;
             v.c[g.SINK]         -= d;
@@ -193,7 +195,8 @@ void push_relabel(ImageGraph &g)
         }
         if (v.overflow == 0)
             continue;
-        if (v.height == g.source.height + 1 && v.c[g.SOURCE] > 0) {
+        if (v.height > g.source.height && v.c[g.SOURCE] > 0) {
+        // if (v.height == g.source.height + 1 && v.c[g.SOURCE] > 0) {
             int d = std::min(v.overflow, v.c[g.SOURCE]);
             v.overflow          -= d;
             v.c[g.SOURCE]       -= d;
