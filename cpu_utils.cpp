@@ -4,8 +4,8 @@
 
 #include "cpu_utils.hpp"
 
-const pixel_t WHITE = { .r = 255, .g = 255, .b = 255 };
-const pixel_t BLACK = { .r = 0, .g = 0, .b = 0 };
+const pixel_t WHITE = { 255, 255, 255 };
+const pixel_t BLACK = { 0, 0, 0 };
 
 
 int writeppm(const char *filename, unsigned width, unsigned height,

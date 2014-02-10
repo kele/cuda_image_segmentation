@@ -52,7 +52,6 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
     __syncthreads();
 
 
-    int direction;
     int delta;
     int current_h, current_e;
     int next_h, next_e;
@@ -73,16 +72,24 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
         next_h = *NEXT_PTR(h);
         next_e = *NEXT_PTR(e);
 
-        direction = (current_h > next_h) - (current_h < next_h); // sign function
-
         right_edge = *right_edge_ptr;
         left_edge = *left_edge_ptr;
-        delta = MAX(MIN(right_edge, current_e)*(current_h > next_h), MIN(left_edge, next_e)*(next_h > current_h));
-        
-        *right_edge_ptr = right_edge + delta*direction;     // writeback
-        *e = current_e + delta*direction;                   // writeback
-        *left_edge_ptr = left_edge - delta*direction;       // writeback
-        next_e = next_e - delta*direction;                  // don't writeback yet, we're not done
+
+        if (current_h > next_h)
+            delta = MIN(right_edge, current_e);
+        else if (current_h < next_h)
+            delta = -MIN(left_edge, next_e);
+        else
+            delta = 0;
+        right_edge  -= delta;
+        current_e   -= delta;
+        left_edge   += delta;
+        next_e      += delta;
+
+        /* write back */
+        *right_edge_ptr = right_edge;
+        *left_edge_ptr = left_edge;
+        *e = current_e;
 
         current_h = next_h;
         current_e = next_e;
@@ -96,36 +103,54 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
     __syncthreads();
 
     /* 8th iteration */
+    /* TODO: merge this if to speed up */
     if (threadIdx.y != BLOCK_HEIGHT - 1) {
         next_h = (&shared[32*32])[LOCAL_XY((threadIdx.y + 1)*8, threadIdx.x)];
         next_e = (&shared[0])[LOCAL_XY((threadIdx.y + 1)*8, threadIdx.x)];
 
-        direction = (current_h > next_h) - (current_h < next_h); // sign function
-
         right_edge = *right_edge_ptr;
         left_edge = *left_edge_ptr;
-        delta = MAX(MIN(right_edge, current_e)*(current_h > next_h), MIN(left_edge, next_e)*(next_h > current_h));
+
+        if (current_h > next_h)
+            delta = MIN(right_edge, current_e);
+        else if (current_h < next_h)
+            delta = -MIN(left_edge, next_e);
+        else
+            delta = 0;
+        right_edge  -= delta;
+        current_e   -= delta;
+        left_edge   += delta;
+        next_e      += delta;
         
-        *right_edge_ptr = right_edge + delta*direction;     // writeback
-        *e = current_e + delta*direction;                   // writeback
-        *left_edge_ptr = left_edge - delta*direction;       // writeback
-        (&shared[0])[LOCAL_XY((threadIdx.y + 1)*8, threadIdx.x)]
-          = next_e - delta*direction;                       // writeback
+        /* write back */
+        *right_edge_ptr = right_edge;
+        *left_edge_ptr = left_edge;
+        *e = current_e;
+        (&shared[0])[LOCAL_XY((threadIdx.y + 1)*8, threadIdx.x)] = next_e;
+
     } else if (blockIdx.x != gridx - 1) {   // PUSH BETWEEN TILES
         next_h = global_h[GLOBAL_XY((blockIdx.x + 1)*32, blockIdx.y*32 + threadIdx.x)];
         next_e = global_e[GLOBAL_XY((blockIdx.x + 1)*32, blockIdx.y*32 + threadIdx.x)];
 
-        direction = (current_h > next_h) - (current_h < next_h); // sign function
-
         right_edge = *right_edge_ptr;
         left_edge = *left_edge_ptr;
-        delta = MAX(MIN(right_edge, current_e)*(current_h > next_h), MIN(left_edge, next_e)*(next_h > current_h));
+
+        if (current_h > next_h)
+            delta = MIN(right_edge, current_e);
+        else if (current_h < next_h)
+            delta = -MIN(left_edge, next_e);
+        else
+            delta = 0;
+        right_edge  -= delta;
+        current_e   -= delta;
+        left_edge   += delta;
+        next_e      += delta;
         
-        *right_edge_ptr = right_edge + delta*direction;     // writeback
-        *e = current_e + delta*direction;                   // writeback
-        *left_edge_ptr = left_edge - delta*direction;       // writeback
-        global_e[GLOBAL_XY((blockIdx.x + 1)*32, blockIdx.y*32 + threadIdx.x)]
-          = next_e - delta*direction;                       // writeback
+        /* write back */
+        *right_edge_ptr = right_edge;
+        *left_edge_ptr = left_edge;
+        *e = current_e;
+        global_e[GLOBAL_XY((blockIdx.x + 1)*32, blockIdx.y*32 + threadIdx.x)] = next_e;
     }
 
     // sync delayed... (a)
@@ -151,16 +176,24 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
         next_h = *VNEXT_PTR(h);
         next_e = *VNEXT_PTR(e);
 
-        direction = (current_h > next_h) - (current_h < next_h); // sign function
-
         right_edge = *right_edge_ptr;
         left_edge = *left_edge_ptr;
-        delta = MAX(MIN(right_edge, current_e)*(current_h > next_h), MIN(left_edge, next_e)*(next_h > current_h));
+
+        if (current_h > next_h)
+            delta = MIN(right_edge, current_e);
+        else if (current_h < next_h)
+            delta = -MIN(left_edge, next_e);
+        else
+            delta = 0;
+        right_edge  -= delta;
+        current_e   -= delta;
+        left_edge   += delta;
+        next_e      += delta;
         
-        *right_edge_ptr = right_edge + delta*direction;     // writeback
-        *e = current_e + delta*direction;                   // writeback
-        *left_edge_ptr = left_edge - delta*direction;       // writeback
-        next_e = next_e - delta*direction;                  // don't writeback yet, we're not done
+        /* write back */
+        *right_edge_ptr = right_edge;
+        *left_edge_ptr = left_edge;
+        *e = current_e;
 
         current_h = next_h;
         current_e = next_e;
@@ -178,31 +211,48 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
         next_h = *VNEXT_PTR(h);
         next_e = *VNEXT_PTR(e);
 
-        direction = (current_h > next_h) - (current_h < next_h); // sign function
-
         right_edge = *right_edge_ptr;
         left_edge = *left_edge_ptr;
-        delta = MAX(MIN(right_edge, current_e)*(current_h > next_h), MIN(left_edge, next_e)*(next_h > current_h));
+
+        if (current_h > next_h)
+            delta = MIN(right_edge, current_e);
+        else if (current_h < next_h)
+            delta = -MIN(left_edge, next_e);
+        else
+            delta = 0;
+        right_edge  -= delta;
+        current_e   -= delta;
+        left_edge   += delta;
+        next_e      += delta;
         
-        *right_edge_ptr = right_edge + delta*direction;     // writeback
-        *e = current_e + delta*direction;                   // writeback
-        *left_edge_ptr = left_edge - delta*direction;       // writeback
-        *VNEXT_PTR(e) = next_e - delta*direction;           // writeback
+        /* write back */
+        *right_edge_ptr = right_edge;
+        *left_edge_ptr = left_edge;
+        *e = current_e;
+        *VNEXT_PTR(e) = next_e;
     } else if (blockIdx.y != gridy - 1) {
         next_h = global_h[GLOBAL_XY(blockIdx.x*32 + threadIdx.x, (blockIdx.y + 1)*32)];
         next_e = global_e[GLOBAL_XY(blockIdx.x*32 + threadIdx.x, (blockIdx.y + 1)*32)];
 
-        direction = (current_h > next_h) - (current_h < next_h); // sign function
-
         right_edge = *right_edge_ptr;
         left_edge = *left_edge_ptr;
-        delta = MAX(MIN(right_edge, current_e)*(current_h > next_h), MIN(left_edge, next_e)*(next_h > current_h));
+
+        if (current_h > next_h)
+            delta = MIN(right_edge, current_e);
+        else if (current_h < next_h)
+            delta = -MIN(left_edge, next_e);
+        else
+            delta = 0;
+        right_edge  -= delta;
+        current_e   -= delta;
+        left_edge   += delta;
+        next_e      += delta;
         
-        *right_edge_ptr = right_edge + delta*direction;     // writeback
-        *e = current_e + delta*direction;                   // writeback
-        *left_edge_ptr = left_edge - delta*direction;       // writeback
-        global_e[GLOBAL_XY(blockIdx.x*32 + threadIdx.x, (blockIdx.y + 1)*32)]
-          = next_e - delta*direction;                       // writeback
+        /* write back */
+        *right_edge_ptr = right_edge;
+        *left_edge_ptr = left_edge;
+        *e = current_e;
+        global_e[GLOBAL_XY(blockIdx.x*32 + threadIdx.x, (blockIdx.y + 1)*32)] = next_e;
     }
     __syncthreads();
     
@@ -217,13 +267,18 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
         current_h = *h;
         current_e = *e;
 
-        direction = current_h > 32*32*gridx*gridy;
-
         right_edge = *right_edge_ptr;
-        delta = MIN(right_edge, current_e);
 
-        *right_edge_ptr = right_edge + delta*direction;     // writeback
-        *e = current_e + delta*direction;                   // writeback
+        if (current_h > 32*32*gridx*gridy)
+            delta = MIN(right_edge, current_e);
+        else
+            delta = 0;
+        right_edge  -= delta;
+        current_e   -= delta;
+        
+        /* write back */
+        *right_edge_ptr = right_edge;
+        *e = current_e;
 
         e = NEXT_PTR(e);
         h = NEXT_PTR(h);
@@ -243,13 +298,18 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
         current_h = *h;
         current_e = *e;
 
-        direction = current_h > 0;
-
         right_edge = *right_edge_ptr;
-        delta = MIN(right_edge, current_e);
 
-        *right_edge_ptr = right_edge + delta*direction;     // writeback
-        *e = current_e + delta*direction;                   // writeback
+        if (current_h > 0)
+            delta = MIN(right_edge, current_e);
+        else
+            delta = 0;
+        right_edge  -= delta;
+        current_e   -= delta;
+        
+        /* write back */
+        *right_edge_ptr = right_edge;
+        *e = current_e;
 
         e = NEXT_PTR(e);
         h = NEXT_PTR(h);
@@ -456,6 +516,7 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
 
     gpu_init<<<grid_dim, other_dim>>> (ce, cto_source, gridx, gridy);
     
+    
     for (int i = 0; i < width*height; i++) {
         gpu_push<<<grid_dim, other_dim, 32*32*8>>>(ce, ch, cright_e, cleft_e, cup_e, cdown_e, cto_source, cto_sink, gridx, gridy);
         gpu_relabel<<<grid_dim, relabel_dim, 32*32*8>>>(ce, ch, cright_e, cleft_e, cup_e, cdown_e, cto_source, cto_sink, gridx, gridy);
@@ -499,9 +560,9 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
             g.get(x, y).c[3] = down_e[GLOBAL_XY(x, y)];
 
             g.get(x, y).overflow = e[GLOBAL_XY(x, y)];
-            if (g.get(x, y).overflow > 0)
-                printf("Something is wrong. Still %d left on %d %d\n", g.get(x, y).overflow, x, y); // DEBUG
             g.get(x, y).height = h[GLOBAL_XY(x, y)];
+            if (g.get(x, y).overflow != 0)
+                printf("%d \t%d \t| overflow = %d \t| height = %d\n", x, y, g.get(x, y).overflow, g.get(x, y).height); // DEBUG
         }
     }
 

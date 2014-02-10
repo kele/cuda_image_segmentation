@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     if (readppm(new_filename, &width, &height, (pixel_t *)marked_image))
         return RETERR(1, "Cannot open input file.\n");
 
-    segmentation_gpu(width, height, (pixel_t *)image, (pixel_t *)marked_image, (pixel_t *)segmented_image);
+    segmentation_cpu(width, height, (pixel_t *)image, (pixel_t *)marked_image, (pixel_t *)segmented_image);
 
     new_filename[0] = 'S';
     if (writeppm(new_filename, width, height, (pixel_t *)segmented_image))
