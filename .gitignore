@@ -1,4 +1,3 @@
 *.o
 flow
-data
-*.ppm
+/*.ppm
