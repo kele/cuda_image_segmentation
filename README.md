@@ -18,6 +18,9 @@ Usage: [n | g | c] flow image.ppm
     c - use CPU
 The result image is written to Simage.ppm
 
+Before using 'g' or 'c' flag, mark \_image.ppm with white (object) and black
+(background).
+
 --
 
 ./data contains some example pictures to play with
