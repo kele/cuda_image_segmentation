@@ -1,9 +1,8 @@
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstdlib>
 #include <deque>
-#include <cassert>
-#include <cstdio> // DEBUG
 
 #include "cpu_seg.hpp"
 
@@ -67,10 +66,6 @@ void segmentation_cpu(int width, int height, const pixel_t *image,
     }
     push_relabel(g);
 
-    puts("BFS");
-
-    
-
     /* Make the image white */
     for (int i = 0; i < height*width; i++) {
         segmented_image[i].r = 255;
@@ -78,6 +73,7 @@ void segmentation_cpu(int width, int height, const pixel_t *image,
         segmented_image[i].b = 255;
     }
 
+    /* BFS */
     std::vector<bool> visited(height*width, false);
     std::deque<int> Q;
     for (unsigned i = 0; i < g.width*g.height; i++) {

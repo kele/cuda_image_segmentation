@@ -1,7 +1,12 @@
 OBJS = cpu_utils.o cpu_seg.o
-CC = nvcc -O2 -Xcompiler -Wno-unused-result -arch=compute_30
+FLAGS = -Xcompiler -Wno-unused-result -arch=compute_30
+CC = nvcc $(FLAGS)
 
+all: FLAGS += -O2
 all: flow Makefile
+
+debug: FLAGS += -g -G
+debug: flow Makefile
 
 flow: main.o gpu_seg.o
 	$(CC) $(OBJS) gpu_seg.o main.o -o flow

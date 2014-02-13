@@ -1,13 +1,17 @@
-#include <cstring>
-#include <vector>
-#include <deque>
 #include <cstdio>
+#include <cstring>
+#include <deque>
+#include <vector>
 
 #include "gpu_seg.hpp"
 #include "cpu_seg.hpp"
 #include "cpu_utils.hpp"
 
-/* TODO: use reduction from CUDA samples */
+/*
+ * TODO:
+ * - debug
+ * - use reduction on excess flow to effectively limit the number of iterations
+ */
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,6 +32,63 @@ void __global__ gpu_init(int *global_e, int *to_source, int gridx, int gridy)
         e = NEXT_PTR(e);
         src_edg_ptr = NEXT_PTR(src_edg_ptr);
     }
+}
+
+void __global__ gpu_push_horiz_tiles(int *global_e, int *global_h, int *right_edges,
+  int *left_edges, int gridx, int gridy)
+{
+        int current_h = global_h[GLOBAL_XY(threadIdx.x*32, threadIdx.y)];
+        int current_e = global_e[GLOBAL_XY(threadIdx.x*32, threadIdx.y)];
+        int next_h = global_h[GLOBAL_XY((threadIdx.x + 1)*32, threadIdx.y)];
+        int next_e = global_e[GLOBAL_XY((threadIdx.x + 1)*32, threadIdx.y)];
+
+        int right_edge = right_edges[GLOBAL_XY(threadIdx.x*32, threadIdx.y)];
+        int left_edge = left_edges[GLOBAL_XY(threadIdx.x*32, threadIdx.y)];
+
+        int delta = 0;
+        if (current_h > next_h)
+            delta = MIN(right_edge, current_e);
+        else if (current_h < next_h)
+            delta = -MIN(left_edge, next_e);
+        right_edge  -= delta;
+        current_e   -= delta;
+        left_edge   += delta;
+        next_e      += delta;
+
+        if (threadIdx.x != gridx - 1) {
+            right_edges[GLOBAL_XY(threadIdx.x*32, threadIdx.y)] = right_edge;
+            left_edges[GLOBAL_XY(threadIdx.x*32, threadIdx.y)] = left_edge;
+            global_e[GLOBAL_XY(threadIdx.x*32, threadIdx.y)] = current_e;
+            global_e[GLOBAL_XY((threadIdx.x + 1)*32, threadIdx.y)] = next_e;
+        }
+}
+void __global__ gpu_push_vertical_tiles(int *global_e, int *global_h, int *down_edges,
+  int *up_edges, int gridx, int gridy)
+{
+        int current_h = global_h[GLOBAL_XY(threadIdx.x, threadIdx.y*32)];
+        int current_e = global_e[GLOBAL_XY(threadIdx.x, threadIdx.y*32)];
+        int next_h = global_h[GLOBAL_XY(threadIdx.x, (threadIdx.y + 1)*32)];
+        int next_e = global_e[GLOBAL_XY(threadIdx.x, (threadIdx.y + 1)*32)];
+
+        int down_edge = down_edges[GLOBAL_XY(threadIdx.x, threadIdx.y*32)];
+        int up_edge = up_edges[GLOBAL_XY(threadIdx.x, threadIdx.y*32)];
+
+        int delta = 0;
+        if (current_h > next_h)
+            delta = MIN(down_edge, current_e);
+        else if (current_h < next_h)
+            delta = -MIN(up_edge, next_e);
+        down_edge  -= delta;
+        current_e   -= delta;
+        up_edge   += delta;
+        next_e      += delta;
+
+        if (threadIdx.y != gridy - 1) {
+            down_edges[GLOBAL_XY(threadIdx.x, threadIdx.y*32)] = down_edge;
+            up_edges[GLOBAL_XY(threadIdx.x, threadIdx.y*32)] = up_edge;
+            global_e[GLOBAL_XY(threadIdx.x, threadIdx.y*32)] = current_e;
+            global_e[GLOBAL_XY(threadIdx.x, (threadIdx.y + 1)*32)] = next_e;
+        }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -103,7 +164,6 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
     __syncthreads();
 
     /* 8th iteration */
-    /* TODO: merge this if to speed up */
     if (threadIdx.y != BLOCK_HEIGHT - 1) {
         next_h = (&shared[32*32])[LOCAL_XY((threadIdx.y + 1)*8, threadIdx.x)];
         next_e = (&shared[0])[LOCAL_XY((threadIdx.y + 1)*8, threadIdx.x)];
@@ -128,31 +188,7 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
         *e = current_e;
         (&shared[0])[LOCAL_XY((threadIdx.y + 1)*8, threadIdx.x)] = next_e;
 
-    } else if (blockIdx.x != gridx - 1) {   // PUSH BETWEEN TILES
-        next_h = global_h[GLOBAL_XY((blockIdx.x + 1)*32, blockIdx.y*32 + threadIdx.x)];
-        next_e = global_e[GLOBAL_XY((blockIdx.x + 1)*32, blockIdx.y*32 + threadIdx.x)];
-
-        right_edge = *right_edge_ptr;
-        left_edge = *left_edge_ptr;
-
-        if (current_h > next_h)
-            delta = MIN(right_edge, current_e);
-        else if (current_h < next_h)
-            delta = -MIN(left_edge, next_e);
-        else
-            delta = 0;
-        right_edge  -= delta;
-        current_e   -= delta;
-        left_edge   += delta;
-        next_e      += delta;
-        
-        /* write back */
-        *right_edge_ptr = right_edge;
-        *left_edge_ptr = left_edge;
-        *e = current_e;
-        global_e[GLOBAL_XY((blockIdx.x + 1)*32, blockIdx.y*32 + threadIdx.x)] = next_e;
-    }
-
+    } 
     // sync delayed... (a)
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -230,31 +266,9 @@ void __global__ gpu_push(int *global_e, int *global_h, int *right_edges,
         *left_edge_ptr = left_edge;
         *e = current_e;
         *VNEXT_PTR(e) = next_e;
-    } else if (blockIdx.y != gridy - 1) {
-        next_h = global_h[GLOBAL_XY(blockIdx.x*32 + threadIdx.x, (blockIdx.y + 1)*32)];
-        next_e = global_e[GLOBAL_XY(blockIdx.x*32 + threadIdx.x, (blockIdx.y + 1)*32)];
-
-        right_edge = *right_edge_ptr;
-        left_edge = *left_edge_ptr;
-
-        if (current_h > next_h)
-            delta = MIN(right_edge, current_e);
-        else if (current_h < next_h)
-            delta = -MIN(left_edge, next_e);
-        else
-            delta = 0;
-        right_edge  -= delta;
-        current_e   -= delta;
-        left_edge   += delta;
-        next_e      += delta;
-        
-        /* write back */
-        *right_edge_ptr = right_edge;
-        *left_edge_ptr = left_edge;
-        *e = current_e;
-        global_e[GLOBAL_XY(blockIdx.x*32 + threadIdx.x, (blockIdx.y + 1)*32)] = next_e;
     }
     __syncthreads();
+
     
 ///////////////////////////////////////////////////////////////////////////////
     /* source push */
@@ -403,6 +417,9 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
     ImageGraph g(width, height);
     Histogram hist(width, height, image, marks);
 
+    std::vector<bool> visited(height*width, false);
+    std::deque<int> Q;
+
 
 
     /* REG_NEIGBHOURS, unfortunately, has to be 4 here */
@@ -465,8 +482,10 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
     e = new int[width*height];
     h = new int[width*height];
 
-    int gridx = width/32;
-    int gridy = height/32;
+    int gridx, gridy;
+
+    gridx = width/32;
+    gridy = height/32;
     for (unsigned x = 0; x < width; x++) {
         for (unsigned y = 0; y < height; y++) {
             to_sink[GLOBAL_XY(x, y)] = g.get(x, y).c[g.SINK];
@@ -513,14 +532,43 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
     dim3 relabel_dim(32, 32);
     dim3 other_dim(32, 4);
     dim3 grid_dim(gridx, gridy);
+    cudaError_t err;
 
     gpu_init<<<grid_dim, other_dim>>> (ce, cto_source, gridx, gridy);
-    
-    
-    for (int i = 0; i < width*height; i++) {
-        gpu_push<<<grid_dim, other_dim, 32*32*8>>>(ce, ch, cright_e, cleft_e, cup_e, cdown_e, cto_source, cto_sink, gridx, gridy);
-        gpu_relabel<<<grid_dim, relabel_dim, 32*32*8>>>(ce, ch, cright_e, cleft_e, cup_e, cdown_e, cto_source, cto_sink, gridx, gridy);
+    if (cudaSuccess != (err = cudaGetLastError())) {
+        printf("#0 Error: %s\n", cudaGetErrorString(err));
+        goto cleanup;
     }
+    
+
+    // TODO: change this O(w*h) loop into while(reduction())
+    for (int i = 0; i < width*height; i++) {
+        gpu_push<<<grid_dim, other_dim, 32*32*8>>>(ce, ch, cright_e, cleft_e,
+          cup_e, cdown_e, cto_source, cto_sink, gridx, gridy);
+        if (cudaSuccess != (err = cudaGetLastError())) {
+            printf("#1 Error: %s\n", cudaGetErrorString(err));
+            goto cleanup;
+        }
+        gpu_push_horiz_tiles<<<dim3(gridx, height), 1>>>(ce, ch, cright_e,
+          cleft_e, gridx, gridy);
+        if (cudaSuccess != (err = cudaGetLastError())) {
+            printf("#2 Error: %s\n", cudaGetErrorString(err));
+            goto cleanup;
+        }
+        gpu_push_vertical_tiles<<<dim3(width, gridy), 1>>>(ce, ch, cdown_e,
+          cup_e, gridx, gridy);
+        if (cudaSuccess != (err = cudaGetLastError())) {
+            printf("#3 Error: %s\n", cudaGetErrorString(err));
+            goto cleanup;
+        }
+        gpu_relabel<<<grid_dim, relabel_dim, 32*32*8>>>(ce, ch, cright_e,
+          cleft_e, cup_e, cdown_e, cto_source, cto_sink, gridx, gridy);
+        if (cudaSuccess != (err = cudaGetLastError())) {
+            printf("#4 Error: %s\n", cudaGetErrorString(err));
+            goto cleanup;
+        }
+    }
+
 
     cudaMemcpy(to_sink, cto_sink, width*height*sizeof(int), cudaMemcpyDeviceToHost);
     cudaMemcpy(to_source, cto_source, width*height*sizeof(int), cudaMemcpyDeviceToHost);
@@ -531,14 +579,6 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
     cudaMemcpy(e, ce, width*height*sizeof(int), cudaMemcpyDeviceToHost);
     cudaMemcpy(h, ch, width*height*sizeof(int), cudaMemcpyDeviceToHost);
 
-    cudaFree(cto_sink);
-    cudaFree(cto_source);
-    cudaFree(cup_e);
-    cudaFree(cdown_e);
-    cudaFree(cright_e);
-    cudaFree(cleft_e);
-    cudaFree(ce);
-    cudaFree(ch);
 
     /* Copying back */
     for (unsigned x = 0; x < width; x++) {
@@ -561,20 +601,10 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
 
             g.get(x, y).overflow = e[GLOBAL_XY(x, y)];
             g.get(x, y).height = h[GLOBAL_XY(x, y)];
-            if (g.get(x, y).overflow != 0)
+            if (g.get(x, y).height > 0)
                 printf("%d \t%d \t| overflow = %d \t| height = %d\n", x, y, g.get(x, y).overflow, g.get(x, y).height); // DEBUG
         }
     }
-
-    delete [] to_sink;
-    delete [] to_source;
-    delete [] up_e;
-    delete [] down_e;
-    delete [] right_e;
-    delete [] left_e;
-    delete [] e;
-    delete [] h;
-
     /* Make the image white */
     for (int i = 0; i < height*width; i++) {
         segmented_image[i].r = 255;
@@ -582,8 +612,6 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
         segmented_image[i].b = 255;
     }
 
-    std::vector<bool> visited(height*width, false);
-    std::deque<int> Q;
     for (unsigned i = 0; i < g.width*g.height; i++) {
         if (g.source.c[i] > 0) {
             segmented_image[i].r = image[i].r;
@@ -622,4 +650,23 @@ void segmentation_gpu(int width, int height, const pixel_t *image,
             }
         }
     }
+
+cleanup:
+    cudaFree(cdown_e);
+    cudaFree(ce);
+    cudaFree(ch);
+    cudaFree(cleft_e);
+    cudaFree(cright_e);
+    cudaFree(cto_sink);
+    cudaFree(cto_source);
+    cudaFree(cup_e);
+
+    delete [] down_e;
+    delete [] e;
+    delete [] h;
+    delete [] left_e;
+    delete [] right_e;
+    delete [] to_sink;
+    delete [] to_source;
+    delete [] up_e;
 }

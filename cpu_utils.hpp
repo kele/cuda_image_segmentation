@@ -17,7 +17,6 @@ inline bool color_eq(const pixel_t &p, unsigned char r, unsigned char g, unsigne
 inline bool operator==(const pixel_t &a, const pixel_t &b)
 { return a.r == b.r && a.g == b.g && a.b == b.b; }
 
-// TODO: check height and width 
 int writeppm(const char *filename, unsigned width, unsigned height,
   const pixel_t pixels[]);
 int readppm(const char *filename, unsigned *width, unsigned *height,
