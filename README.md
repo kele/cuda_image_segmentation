@@ -1,7 +1,6 @@
 cuda_image_segmentation
 =======================
-# Warning
-**This project has been abandoned.**
+# This project has been abandoned.
 
 Simple CUDA image segmentation implementation
 
